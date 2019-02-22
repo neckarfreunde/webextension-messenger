@@ -1,0 +1,4 @@
+.idea/
+node_modules/
+example/build/
+yarn-error.log

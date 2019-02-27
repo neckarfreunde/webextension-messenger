@@ -1,16 +1,18 @@
 import { BehaviorSubject, fromEventPattern, Observable } from "rxjs";
-import { filter, map, switchMap, take, takeUntil, tap, timeout } from "rxjs/operators";
+import { filter, finalize, map, switchMap, take, takeUntil, tap } from "rxjs/operators";
 import { v4 } from "uuid";
 import ConnectionStatus from "./connection-status.enum";
+import MethodHandler from "./method-handler";
 import { IBroadcast, isBroadcast } from "./model/broadcast.interface";
 import { isMessage } from "./model/message.interface";
 import MessageTypes from "./model/messate-types.enum";
 import IMethodAdvertisement from "./model/method-advertisement.interface";
 import IMethodCall from "./model/method-call.interface";
 import IMethodReturn, { isMethodReturn } from "./model/method-return.interface";
-import { IMethodList, ObservableMethodList } from "./types";
+import { IMethodList } from "./types";
 
-export default class Connection<M extends IMethodList> {
+// TODO Separate broadcaster?
+export default class Connection<M extends IMethodList> extends MethodHandler<M> {
     public get status$(): Observable<ConnectionStatus> {
         return this.statusSub.asObservable();
     }
@@ -22,11 +24,7 @@ export default class Connection<M extends IMethodList> {
         );
     }
 
-    public readonly methods: ObservableMethodList<M> = this.initMethodsProxy();
-
     protected readonly id: string;
-
-    protected readonly methodHandlers: IMethodList;
 
     protected port?: browser.runtime.Port;
 
@@ -47,12 +45,10 @@ export default class Connection<M extends IMethodList> {
         filter((msg) => isMessage(msg)),
     );
 
-    public constructor(
-        methods: IMethodList = {},
-        prefix?: string,
-    ) {
+    public constructor(prefix?: string, methods?: M) {
+        super(methods);
+
         this.id = `${(prefix) ? `${prefix}:` : ""}${v4()}`;
-        this.methodHandlers = methods;
     }
 
     /**
@@ -88,7 +84,7 @@ export default class Connection<M extends IMethodList> {
         // Register methods with router
         const methods: IMethodAdvertisement = {
             type: MessageTypes.MethodAdvertisement,
-            methods: Object.keys(this.methodHandlers),
+            methods: Object.keys(this.methodList),
         };
         this.port!.postMessage(methods);
 
@@ -116,8 +112,14 @@ export default class Connection<M extends IMethodList> {
      * Send method call to router
      */
     protected callMethod(method: string, args: any[]): Observable<any> {
+        if (this.methodList.hasOwnProperty(method)) {
+            // Can be handled locally
+            console.debug("Calling local method", { method, args });
+            return super.callMethod(method, args);
+        }
+
         const id = v4();
-        console.debug("Calling method", { id, method, args });
+        console.debug("Calling remote method", { id, method, args });
 
         const methodCall: IMethodCall = {
             type: MessageTypes.MethodCall,
@@ -128,33 +130,28 @@ export default class Connection<M extends IMethodList> {
 
         this.port!.postMessage(methodCall);
 
-        return this.message$.pipe(
+        const return$: Observable<IMethodReturn> = this.message$.pipe(
             filter((msg) => isMethodReturn(msg) && msg.id === id),
-            take(1),
+        );
+
+        const complete$ = return$.pipe(
+            filter(({ complete }) => complete),
+        );
+
+        return return$.pipe(
             map((msg: IMethodReturn) => {
                 console.debug("Received method call return", {
                     id,
                     method,
-                    return: msg.return,
+                    return: msg.value,
                 });
 
-                return msg.return;
+                return msg.value;
             }),
 
-            timeout(10000),
+            // Return values until completion
+            takeUntil(complete$),
+            finalize(() => console.debug("Return stream closed", { id, method })),
         );
-    }
-
-    /**
-     * Initializes the proxy used for the methods property
-     */
-    protected initMethodsProxy() {
-        const proxyObj: any = {};
-        Object.preventExtensions(proxyObj);
-        Object.seal(proxyObj);
-
-        return new Proxy(proxyObj, {
-            get: (target, property: string) => (...args: any[]) => this.callMethod(property, args),
-        });
     }
 }

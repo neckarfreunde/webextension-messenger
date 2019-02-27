@@ -8,7 +8,7 @@
   "scripts": {
     "lint": "tslint --project .",
     "test": "jest",
-    "watch-example": "NODE_ENV=development nodemon --watch . --ignore example/build/* -e ts,json --exec yarn build-example",
+    "watch-example": "NODE_ENV=development nodemon --watch . --ignore example/build/ -e ts,json --exec yarn build-example",
     "build-example": "webpack --config example/webpack.config.js"
   },
   "dependencies": {

@@ -12,6 +12,7 @@ import IMethodAdvertisement from "./model/method-advertisement.interface";
 import IMethodCall from "./model/method-call.interface";
 import IMethodCompletion, { isMethodCompletion } from "./model/method-completion.interface";
 import IMethodReturn, { isMethodReturn } from "./model/method-return.interface";
+import IMethodUnsubscribe from "./model/method-unsubscribe.interface";
 import { IMethodList } from "./types";
 
 // TODO Separate broadcaster?
@@ -47,7 +48,7 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
         filter((msg) => isMessage(msg)),
     );
 
-    public constructor(prefix?: string, methods?: M) {
+    public constructor(prefix?: string, methods?: IMethodList) {
         super(methods);
 
         this.id = `${(prefix) ? `${prefix}:` : ""}${v4()}`;
@@ -132,10 +133,14 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
 
         this.port!.postMessage(methodCall);
 
+        let completed = false;
         const complete$: Observable<IMethodCompletion> = this.message$.pipe(
             filter((msg) => isMethodCompletion(msg) && msg.id === id),
             take(1),
-            tap(() => console.debug("Method call complete", { id, method })),
+            tap(() => {
+                completed = true;
+                console.debug("Method call complete", { id, method });
+            }),
         );
 
         const error$ = this.message$.pipe(
@@ -163,7 +168,17 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
         return merge(return$, error$).pipe(
             // Return values until completion
             takeUntil(complete$),
-            finalize(() => console.debug("Return stream closed", { id, method })),
+            finalize(() => {
+                if (!completed) {
+                    // Stop method execution on the other end
+                    this.port!.postMessage({
+                        type: MessageTypes.MethodUnsubscribe,
+                        id,
+                    } as IMethodUnsubscribe);
+                }
+
+                console.debug("Return stream closed", { id, method, completed });
+            }),
         );
     }
 }

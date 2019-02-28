@@ -4,6 +4,7 @@ enum MessageTypes {
     MethodCall = "method-call",
     MethodReturn = "method-return",
     MethodCompletion = "method-completion",
+    MethodUnsubscribe = "method-unsubscribe",
     Error = "error",
 }
 

@@ -1,4 +1,4 @@
-import { fromEventPattern, NEVER, Observable, of, Subject, throwError, TimeoutError } from "rxjs";
+import { fromEventPattern, NEVER, Observable, of, race, Subject, throwError, TimeoutError } from "rxjs";
 import {
     catchError,
     filter,
@@ -22,6 +22,7 @@ import IMethodAdvertisement, { isMethodAdvertisement } from "./model/method-adve
 import IMethodCall, { isMethodCall } from "./model/method-call.interface";
 import IMethodCompletion, { isMethodCompletion } from "./model/method-completion.interface";
 import IMethodReturn, { isMethodReturn } from "./model/method-return.interface";
+import { isMethodUnsubscribe } from "./model/method-unsubscribe.interface";
 import { IMethodList } from "./types";
 import Port = browser.runtime.Port;
 
@@ -193,6 +194,12 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> {
             (handler) => client.onDisconnect.removeListener(handler),
         ).pipe(take(1));
 
+        const unsubscribe$ = this.message$.pipe(
+            filter(({ message }) => isMethodUnsubscribe(message) && message.id === id),
+            take(1),
+            tap(() => console.debug(`Client ${clientName} unsubscribed from method call`, { id, method })),
+        );
+
         out$.pipe(
             map((value): IMethodReturn => ({
                 type: MessageTypes.MethodReturn,
@@ -209,7 +216,7 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> {
                 stack: e.stack,
             } as IError)),
 
-            takeUntil(disconnect$),
+            takeUntil(race(disconnect$, unsubscribe$)),
             finalize(() => client.postMessage({
                 type: MessageTypes.MethodCompletion,
                 id,

@@ -4,7 +4,7 @@ import ConnectionStatus from "./connection-status.enum";
 
 describe("Connection", () => {
     test("if connect throws status goes from Connecting to Failed", (done) => {
-        const connection = new Connection({});
+        const connection = new Connection();
 
         connection.status$.pipe(
             take(2),

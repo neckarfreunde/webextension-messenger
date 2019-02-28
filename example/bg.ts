@@ -5,13 +5,13 @@ import { IMethodList } from "../src/types";
 import { AllMethods } from "./interfaces";
 
 export interface IBgMethods extends IMethodList {
-    bgTimeSubscribe: () => Observable<number>;
+    bgTimeSubscribe: (limit?: number) => Observable<number>;
 }
 
 const methods: IBgMethods = {
-    bgTimeSubscribe: () => timer(0, 1000).pipe(
+    bgTimeSubscribe: (limit: number = Infinity) => timer(0, 1000).pipe(
         map(() => Math.round(Date.now() / 1000)),
-        take(10),
+        take(limit),
     ),
 };
 

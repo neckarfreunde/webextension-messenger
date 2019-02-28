@@ -1,5 +1,4 @@
-import { timer } from "rxjs";
-import { concatMap, filter, switchMapTo, tap } from "rxjs/operators";
+import { filter, switchMap, take, tap } from "rxjs/operators";
 import Connection from "../src/connection";
 import ConnectionStatus from "../src/connection-status.enum";
 import { AllMethods, IActionMethods } from "./interfaces";
@@ -16,15 +15,15 @@ const methods: IActionMethods = {
 
 btnBroadcast.disabled = true;
 
-const connection = new Connection<AllMethods>(methods, "action");
+const connection = new Connection<AllMethods>("action", methods);
 
 connection.status$.subscribe((status) => { divStatus.innerText = status; });
 connection.status$.pipe(
     filter((status) => status === ConnectionStatus.Connected),
     tap(() => { btnBroadcast.disabled = false; }),
+    take(1),
 
-    switchMapTo(timer(0, 1000)),
-    concatMap(() => connection.methods.time()),
+    switchMap(() => connection.methods.bgTimeSubscribe(10)),
 ).subscribe((time) => { divTime.innerText = `${time}`; });
 
 connection.connect();

@@ -2,6 +2,7 @@
 
 import { interval, Observable } from "rxjs";
 import { take, toArray } from "rxjs/operators";
+import MethodNotFoundException from "./exceptions/method-not-found.exception";
 import MethodHandler from "./method-handler";
 import { IMethodList } from "./types";
 
@@ -104,5 +105,22 @@ describe("MethodHandler", () => {
 
             done();
         }, done);
+    });
+
+    test("throws not found exception for unknown methods", (done) => {
+        const ret: Observable<any> = (handler.methods as any).unknown();
+
+        expect(ret)
+            .toBeInstanceOf(Observable);
+
+        ret.subscribe(
+            () => done("should not emit"),
+            (e: MethodNotFoundException) => {
+                expect(e)
+                    .toBeInstanceOf(MethodNotFoundException);
+
+                done();
+            },
+        );
     });
 });

@@ -1,8 +1,5 @@
 import { IMethodList } from "../src/types";
-
-export interface IBgMethods extends IMethodList {
-    time: () => number;
-}
+import { IBgMethods } from "./bg";
 
 export interface IActionMethods extends IMethodList {
     print: (value: string) => void;

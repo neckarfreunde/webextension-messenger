@@ -1,4 +1,4 @@
-import { fromEventPattern, NEVER, Observable, Subject, TimeoutError } from "rxjs";
+import { fromEventPattern, NEVER, Observable, of, Subject, throwError, TimeoutError } from "rxjs";
 import {
     catchError,
     filter,
@@ -12,11 +12,18 @@ import {
     timeout,
     toArray,
 } from "rxjs/operators";
+import MethodNotFoundException from "./exceptions/method-not-found.exception";
+import MethodHandler from "./method-handler";
 import { IBroadcast, isBroadcast } from "./model/broadcast.interface";
-import { isMessage } from "./model/message.interface";
+import IError from "./model/error.interface";
+import IMessage, { isMessage } from "./model/message.interface";
+import MessageTypes from "./model/messate-types.enum";
 import IMethodAdvertisement, { isMethodAdvertisement } from "./model/method-advertisement.interface";
-import Port = browser.runtime.Port;
 import IMethodCall, { isMethodCall } from "./model/method-call.interface";
+import IMethodCompletion, { isMethodCompletion } from "./model/method-completion.interface";
+import IMethodReturn, { isMethodReturn } from "./model/method-return.interface";
+import { IMethodList } from "./types";
+import Port = browser.runtime.Port;
 
 interface IClientList {
     [id: string]: Port;
@@ -31,7 +38,7 @@ interface IPortMessage<M = any> {
     readonly message: M;
 }
 
-export default class Router {
+export default class Router<M extends IMethodList> extends MethodHandler<M> {
     /**
      * Mapping between client names and Ports
      */
@@ -44,7 +51,9 @@ export default class Router {
 
     protected readonly message$ = new Subject<IPortMessage>();
 
-    public constructor() {
+    public constructor(methods?: IMethodList) {
+        super(methods);
+
         this.initBroadcastHandling();
         this.initMethodCallHandling();
 
@@ -63,8 +72,7 @@ export default class Router {
         }
 
         if (this.clients.hasOwnProperty(port.name)) {
-            console.warn(`Connection from client with duplicate id '${port.name}' rejected`);
-            port.disconnect();
+            console.warn(`Connection from client with duplicate id '${port.name}' ignored`);
             return;
         }
 
@@ -142,34 +150,71 @@ export default class Router {
     protected initMethodCallHandling() {
         this.message$.pipe(
             filter(({ message }) => isMethodCall(message)),
-            tap(({ client, message }) => console.debug(`Handling method call from client '${client}'`, { ...message })),
+        ).subscribe(({ client, message }) => this.handleMethodCall(client, message));
+    }
 
-            map((message: IPortMessage<IMethodCall>) => {
-                let handler: Port | undefined;
-                const method = message.message.method;
-                if (this.methodMapping.hasOwnProperty(method)) {
-                    handler = this.clients[this.methodMapping[method]];
-                }
+    // TODO Logging
+    /**
+     * Route method call to correct handler
+     */
+    protected handleMethodCall(clientName: string, call: IMethodCall) {
+        console.debug(`Handling method call from client '${clientName}'`, { ...call });
 
-                return {
-                    ...message,
-                    handler,
-                };
-            }),
+        const { method, args, id } = call;
 
-            // Verify called method exists
-            filter(({ handler, message }) => {
-                if (!handler) {
-                    const { method, args } = message;
+        let out$: Observable<IMessage<any>>;
+        if (this.methodList.hasOwnProperty(method)) {
+            console.debug(`Handling client call locally`, { ...call });
+            out$ = super.callMethod(method, args);
+        } else if (this.methodMapping.hasOwnProperty(method)) {
+            const handler = this.clients[this.methodMapping[method]];
+            handler.postMessage(handler);
 
-                    // TODO Send error response to callee
-                    console.warn(`Call to unknown method '${method}'`, { method, args });
-                    return false;
-                }
+            const complete$: Observable<any> = this.message$.pipe(
+                filter(({ message }) => isMethodCompletion(message) && message.id === id),
+                take(1),
+            );
 
-                return true;
-            }),
-        ).subscribe(({ handler, message }) => handler!.postMessage(message)); // Forward to correct handler
+            out$ = this.message$.pipe(
+                map(({ message }) => message as IMethodReturn),
+                filter((message) => isMethodReturn(message) && message.id === id),
+
+                takeUntil(complete$),
+            );
+        } else {
+            console.warn(`Call to unknown method '${method}'`, { name: method, args });
+            out$ = throwError(new MethodNotFoundException(method));
+        }
+
+        const client = this.clients[clientName];
+
+        const disconnect$ = fromEventPattern(
+            (handler) => client.onDisconnect.addListener(handler),
+            (handler) => client.onDisconnect.removeListener(handler),
+        ).pipe(take(1));
+
+        out$.pipe(
+            map((value): IMethodReturn => ({
+                type: MessageTypes.MethodReturn,
+                id,
+                value,
+            })),
+
+            tap((ret) => console.debug("Sending method return", ret)),
+
+            catchError((e: Error) => of({
+                type: MessageTypes.Error,
+                id,
+                message: e.message,
+                stack: e.stack,
+            } as IError)),
+
+            takeUntil(disconnect$),
+            finalize(() => client.postMessage({
+                type: MessageTypes.MethodCompletion,
+                id,
+            } as IMethodCompletion)),
+        ).subscribe((msg) => client.postMessage(msg));
     }
 
     /**

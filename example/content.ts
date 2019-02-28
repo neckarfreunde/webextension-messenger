@@ -1,11 +1,12 @@
+import { filter, switchMap } from "rxjs/operators";
 import Connection from "../src/connection";
+import ConnectionStatus from "../src/connection-status.enum";
+import { AllMethods } from "./interfaces";
 
-console.log("bg");
-
-const connection = new Connection({}, "content");
-
-connection.status$.subscribe((status) => console.log("con status", status));
-
-connection.broadcast$.subscribe((data) => console.log("got broadcast", data));
-
+const connection = new Connection<AllMethods>("content");
 connection.connect();
+
+connection.status$.pipe(
+    filter((c) => c === ConnectionStatus.Connected),
+    switchMap(() => connection.methods.bgTimeSubscribe()),
+).subscribe(console.log.bind(void 0, "got time"));

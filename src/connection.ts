@@ -1,17 +1,21 @@
-import { BehaviorSubject, fromEventPattern, Observable } from "rxjs";
+import { BehaviorSubject, fromEventPattern, merge, Observable, throwError } from "rxjs";
 import { filter, finalize, map, switchMap, take, takeUntil, tap } from "rxjs/operators";
 import { v4 } from "uuid";
 import ConnectionStatus from "./connection-status.enum";
+import RemoteMethodException from "./exceptions/remote-method.exception";
 import MethodHandler from "./method-handler";
 import { IBroadcast, isBroadcast } from "./model/broadcast.interface";
+import { isError } from "./model/error.interface";
 import { isMessage } from "./model/message.interface";
 import MessageTypes from "./model/messate-types.enum";
 import IMethodAdvertisement from "./model/method-advertisement.interface";
 import IMethodCall from "./model/method-call.interface";
+import IMethodCompletion, { isMethodCompletion } from "./model/method-completion.interface";
 import IMethodReturn, { isMethodReturn } from "./model/method-return.interface";
 import { IMethodList } from "./types";
 
 // TODO Separate broadcaster?
+// TODO On unsubscribe from method call send signal to handler
 export default class Connection<M extends IMethodList> extends MethodHandler<M> {
     public get status$(): Observable<ConnectionStatus> {
         return this.statusSub.asObservable();
@@ -31,10 +35,8 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
     protected statusSub = new BehaviorSubject(ConnectionStatus.Connecting);
 
     protected readonly message$: Observable<any> = this.status$.pipe(
-        tap(console.log),
         filter((status) => status === ConnectionStatus.Connected),
         take(1),
-        tap(console.log.bind(void 0, "before switch")),
 
         switchMap(() => fromEventPattern<[any, any]>(
             (handler) => this.port!.onMessage.addListener(handler),
@@ -109,7 +111,7 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
     }
 
     /**
-     * Send method call to router
+     * @inheritDoc
      */
     protected callMethod(method: string, args: any[]): Observable<any> {
         if (this.methodList.hasOwnProperty(method)) {
@@ -130,25 +132,35 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
 
         this.port!.postMessage(methodCall);
 
+        const complete$: Observable<IMethodCompletion> = this.message$.pipe(
+            filter((msg) => isMethodCompletion(msg) && msg.id === id),
+            take(1),
+            tap(() => console.debug("Method call complete", { id, method })),
+        );
+
+        const error$ = this.message$.pipe(
+            filter((msg) => isError(msg) && msg.id === id),
+            take(1),
+            tap(({ message, stack }) => console.debug("Method call failure", { id, message, stack })),
+
+            switchMap(({ message, stack }) => throwError(new RemoteMethodException(message, stack))),
+        );
+
         const return$: Observable<IMethodReturn> = this.message$.pipe(
             filter((msg) => isMethodReturn(msg) && msg.id === id),
-        );
-
-        const complete$ = return$.pipe(
-            filter(({ complete }) => complete),
-        );
-
-        return return$.pipe(
-            map((msg: IMethodReturn) => {
+            tap(console.log),
+            map(({ value }: IMethodReturn) => {
                 console.debug("Received method call return", {
                     id,
                     method,
-                    return: msg.value,
+                    return: value,
                 });
 
-                return msg.value;
+                return value;
             }),
+        );
 
+        return merge(return$, error$).pipe(
             // Return values until completion
             takeUntil(complete$),
             finalize(() => console.debug("Return stream closed", { id, method })),

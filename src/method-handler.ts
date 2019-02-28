@@ -1,4 +1,4 @@
-import { from, isObservable, Observable, of } from "rxjs";
+import { from, isObservable, Observable, of, throwError } from "rxjs";
 import MethodNotFoundException from "./exceptions/method-not-found.exception";
 import { IMethodList, ObservableMethodList } from "./types";
 
@@ -6,7 +6,7 @@ export default abstract class MethodHandler<M extends IMethodList> {
     public readonly methods: ObservableMethodList<M> = this.initMethodsProxy();
 
     protected constructor(
-        protected readonly methodList: M = {} as any,
+        protected readonly methodList: IMethodList = {},
     ) { }
 
     /**
@@ -27,7 +27,7 @@ export default abstract class MethodHandler<M extends IMethodList> {
      */
     protected callMethod(method: string, args: any[]): Observable<any> {
         if (!this.methodList.hasOwnProperty(method)) {
-            throw new MethodNotFoundException(method);
+            return throwError(new MethodNotFoundException(method));
         }
 
         const fnReturn = this.methodList[method](...args);

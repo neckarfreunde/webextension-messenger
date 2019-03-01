@@ -1,14 +1,13 @@
 /* tslint:disable:member-ordering */
 
 import { fromEventPattern, merge, Observable, race, throwError } from "rxjs";
-import { filter, finalize, map, shareReplay, switchMap, take, takeUntil, tap } from "rxjs/operators";
+import { filter, finalize, map, switchMap, take, takeUntil, tap } from "rxjs/operators";
 import { v4 } from "uuid";
 import RemoteMethodException from "./exceptions/remote-method.exception";
 import { IBroadcast, isBroadcast } from "./models/broadcast.interface";
 import { isError } from "./models/error.interface";
+import MessageTypes from "./models/message-types.enum";
 import IMessage, { isMessage } from "./models/message.interface";
-import MessageTypes from "./models/messate-types.enum";
-import IMethodAdvertisement, { isMethodAdvertisement } from "./models/method-advertisement.interface";
 import IMethodCall, { isMethodCall } from "./models/method-call.interface";
 import IMethodCompletion, { isMethodCompletion } from "./models/method-completion.interface";
 import IMethodReturn, { isMethodReturn } from "./models/method-return.interface";
@@ -25,13 +24,6 @@ export default class PortWrapper {
 
     public readonly methodCall$: Observable<IMethodCall> = this.message$.pipe(
         filter(isMethodCall),
-    );
-
-    public readonly methodAdvertisement$: Observable<IMethodAdvertisement> = this.message$.pipe(
-        filter(isMethodAdvertisement),
-        take(1),
-
-        shareReplay(),
     );
 
     public broadcast$: Observable<IBroadcast> = this.message$.pipe(

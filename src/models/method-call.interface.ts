@@ -1,5 +1,5 @@
+import MessageTypes from "./message-types.enum";
 import IMessage, { isMessage } from "./message.interface";
-import MessageTypes from "./messate-types.enum";
 
 export default interface IMethodCall extends IMessage<MessageTypes.MethodCall> {
     readonly id: string;

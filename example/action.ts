@@ -1,22 +1,15 @@
 import { filter, switchMap, take, tap } from "rxjs/operators";
-import Connection from "../src/connection";
+import Client from "../src/client";
 import ConnectionStatus from "../src/connection-status.enum";
-import { AllMethods, IActionMethods } from "./interfaces";
+import { IBgMethods } from "./bg";
 
 const btnBroadcast = document.getElementById("btnBroadcast") as HTMLButtonElement;
-const btnReload = document.getElementById("btnReload") as HTMLButtonElement;
 const divStatus = document.getElementById("divStatus") as HTMLDivElement;
 const divTime = document.getElementById("divTime") as HTMLDivElement;
 
-const methods: IActionMethods = {
-    print: (value) => {
-        divStatus.innerText = value;
-    },
-};
-
 btnBroadcast.disabled = true;
 
-const connection = new Connection<AllMethods>("action", methods);
+const connection = new Client<IBgMethods>("action");
 
 connection.status$.subscribe((status) => { divStatus.innerText = status; });
 connection.status$.pipe(
@@ -32,6 +25,3 @@ connection.connect();
 btnBroadcast.addEventListener("click", () => connection.sendBroadcast({
     time: Date.now(),
 }, /^content:.*/));
-
-btnReload.addEventListener("click", () => connection.methods.reload("because i say so")
-    .subscribe());

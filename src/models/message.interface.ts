@@ -1,4 +1,4 @@
-import MessageTypes from "./messate-types.enum";
+import MessageTypes from "./message-types.enum";
 
 export default interface IMessage<T extends MessageTypes> {
     readonly type: T;

@@ -1,25 +1,13 @@
 import { from, isObservable, Observable, of, throwError } from "rxjs";
 import MethodNotFoundException from "./exceptions/method-not-found.exception";
-import { IMethodList, ObservableMethodList } from "./types";
+import MethodProxy from "./method-proxy";
+import { IMethodList } from "./types";
 
-export default abstract class MethodHandler<M extends IMethodList> {
-    public readonly methods: ObservableMethodList<M> = this.initMethodsProxy();
-
+export default abstract class MethodHandler<M extends IMethodList> extends MethodProxy<M> {
     protected constructor(
-        protected readonly methodList: IMethodList = {},
-    ) { }
-
-    /**
-     * Initializes the proxy used for method calling
-     */
-    protected initMethodsProxy() {
-        const proxyObj: any = {};
-        Object.preventExtensions(proxyObj);
-        Object.seal(proxyObj);
-
-        return new Proxy(proxyObj, {
-            get: (target, property: string) => (...args: any[]) => this.callMethod(property, args),
-        });
+        protected readonly methodList: IMethodList,
+    ) {
+        super();
     }
 
     /**

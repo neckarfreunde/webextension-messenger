@@ -2,7 +2,6 @@ import { Observable, timer } from "rxjs";
 import { map, take } from "rxjs/operators";
 import Router from "../src/router";
 import { IMethodList } from "../src/types";
-import { AllMethods } from "./interfaces";
 
 export interface IBgMethods extends IMethodList {
     bgTimeSubscribe: (limit?: number) => Observable<number>;
@@ -15,5 +14,5 @@ const methods: IBgMethods = {
     ),
 };
 
-const router = new Router<AllMethods>(methods);
+const router = new Router<IBgMethods>(methods);
 (window as any).router = router;

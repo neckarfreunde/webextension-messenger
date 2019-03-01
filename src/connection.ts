@@ -3,6 +3,7 @@ import { filter, finalize, map, switchMap, take, takeUntil, tap } from "rxjs/ope
 import { v4 } from "uuid";
 import ConnectionStatus from "./connection-status.enum";
 import RemoteMethodException from "./exceptions/remote-method.exception";
+import IBroadcaster from "./interfaces/broadcaster.interface";
 import MethodHandler from "./method-handler";
 import { IBroadcast, isBroadcast } from "./model/broadcast.interface";
 import { isError } from "./model/error.interface";
@@ -17,7 +18,7 @@ import { IMethodList } from "./types";
 
 // TODO Separate broadcaster?
 // TODO On unsubscribe from method call send signal to handler
-export default class Connection<M extends IMethodList> extends MethodHandler<M> {
+export default class Connection<M extends IMethodList> extends MethodHandler<M> implements IBroadcaster {
     public get status$(): Observable<ConnectionStatus> {
         return this.statusSub.asObservable();
     }
@@ -55,9 +56,9 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
     }
 
     /**
-     * Send broadcast message to all clients that match the given filter
+     * @inheritDoc
      */
-    public broadcast(data: any, clientFilter = /.*/) {
+    public sendBroadcast(data: any, clientFilter = /.*/) {
         if (this.statusSub.getValue() !== ConnectionStatus.Connected) {
             throw new Error("Connection not ready");
         }
@@ -65,7 +66,10 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
         const broadcast: IBroadcast = {
             type: MessageTypes.Broadcast,
             data,
-            filter: clientFilter.source,
+            filter: {
+                source: clientFilter.source,
+                flags: clientFilter.flags,
+            },
         };
 
         console.debug("Sending broadcast", broadcast);

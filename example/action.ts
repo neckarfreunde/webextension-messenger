@@ -28,6 +28,6 @@ connection.status$.pipe(
 
 connection.connect();
 
-btnBroadcast.addEventListener("click", () => connection.broadcast({
+btnBroadcast.addEventListener("click", () => connection.sendBroadcast({
     time: Date.now(),
 }, /^content:.*/));

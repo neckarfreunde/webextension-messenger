@@ -1,4 +1,4 @@
-import { fromEventPattern, NEVER, Observable, of, race, Subject, throwError, TimeoutError } from "rxjs";
+import { fromEventPattern, Observable, of, race, Subject, throwError, TimeoutError } from "rxjs";
 import {
     catchError,
     filter,
@@ -13,6 +13,7 @@ import {
     toArray,
 } from "rxjs/operators";
 import MethodNotFoundException from "./exceptions/method-not-found.exception";
+import IBroadcaster from "./interfaces/broadcaster.interface";
 import MethodHandler from "./method-handler";
 import { IBroadcast, isBroadcast } from "./model/broadcast.interface";
 import IError from "./model/error.interface";
@@ -39,7 +40,7 @@ interface IPortMessage<M = any> {
     readonly message: M;
 }
 
-export default class Router<M extends IMethodList> extends MethodHandler<M> {
+export default class Router<M extends IMethodList> extends MethodHandler<M> implements IBroadcaster {
     /**
      * Mapping between client names and Ports
      */
@@ -62,6 +63,37 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> {
             (listener) => browser.runtime.onConnect.addListener(listener),
             (listener) => browser.runtime.onConnect.removeListener(listener),
         ).subscribe((port) => this.onClientConnect(port));
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public sendBroadcast(data: any, clientFilter = /.*/): void {
+        const clients = Object.keys(this.clients)
+            .filter((client) => clientFilter.test(client));
+
+        if (clients.length === 0) {
+            return;
+        }
+
+        const message: IBroadcast = {
+            type: MessageTypes.Broadcast,
+            data,
+            filter: {
+                source: clientFilter.source,
+                flags: clientFilter.flags,
+            },
+        };
+
+        clients.forEach((client) => {
+            try {
+                console.debug(`Emitting broadcast to client '${client}'`, message);
+                this.clients[client].postMessage(message);
+            } catch {
+                // TODO Encapsulate clients in object for easier state checking?
+                // Failure, ignore for now
+            }
+        });
     }
 
     protected onClientConnect(port: Port) {
@@ -122,27 +154,10 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> {
     protected initBroadcastHandling() {
         this.message$.pipe(
             filter(({ message }) => isBroadcast(message)),
-
-            map(({ message, client }: IPortMessage<IBroadcast>) => {
-                const regExp = new RegExp(message.filter);
-
-                const clients = Object.keys(this.clients)
-                    .filter((name) => name !== client && regExp.test(name));
-
-                return { clients, message };
-            }),
-
-            catchError((e: Error) => {
-                console.error("Failed to emit broadcast message due to exception", e);
-
-                return NEVER;
-            }),
-        ).subscribe(({ clients, message }) => clients.forEach((client: string) => {
-            console.debug(`Emitting broadcast to client '${client}'`, message);
-
-            const port = this.clients[client];
-            port.postMessage(message);
-        }));
+        ).subscribe(({ message }: IPortMessage<IBroadcast>) => this.sendBroadcast(
+            message.data,
+            new RegExp(message.filter.source, message.filter.flags),
+        ));
     }
 
     /**
@@ -154,7 +169,6 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> {
         ).subscribe(({ client, message }) => this.handleMethodCall(client, message));
     }
 
-    // TODO Logging
     /**
      * Route method call to correct handler
      */
@@ -217,10 +231,17 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> {
             } as IError)),
 
             takeUntil(race(disconnect$, unsubscribe$)),
-            finalize(() => client.postMessage({
-                type: MessageTypes.MethodCompletion,
-                id,
-            } as IMethodCompletion)),
+            finalize(() => {
+                try {
+                    client.postMessage({
+                        type: MessageTypes.MethodCompletion,
+                        id,
+                    } as IMethodCompletion);
+                } catch {
+                    // TODO Better solution
+                    // Port might be closed, ignore
+                }
+            }),
         ).subscribe((msg) => client.postMessage(msg));
     }
 

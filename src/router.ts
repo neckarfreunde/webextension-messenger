@@ -1,31 +1,16 @@
-import { fromEventPattern, Observable, of, race, Subject, throwError, TimeoutError } from "rxjs";
-import {
-    catchError,
-    filter,
-    finalize,
-    map,
-    switchMap,
-    switchMapTo,
-    take,
-    takeUntil,
-    tap,
-    timeout,
-    toArray,
-} from "rxjs/operators";
+import { fromEventPattern, Observable, of, race, throwError, TimeoutError } from "rxjs";
+import { catchError, filter as rxFilter, map, switchMap, takeUntil, tap, timeout, toArray } from "rxjs/operators";
 import MethodNotFoundException from "./exceptions/method-not-found.exception";
 import IBroadcaster from "./interfaces/broadcaster.interface";
 import MethodHandler from "./method-handler";
-import { IBroadcast, isBroadcast } from "./model/broadcast.interface";
+import { IBroadcast } from "./model/broadcast.interface";
 import IError from "./model/error.interface";
-import IMessage, { isMessage } from "./model/message.interface";
+import IMessage from "./model/message.interface";
 import MessageTypes from "./model/messate-types.enum";
-import IMethodAdvertisement, { isMethodAdvertisement } from "./model/method-advertisement.interface";
-import IMethodCall, { isMethodCall } from "./model/method-call.interface";
-import IMethodCompletion, { isMethodCompletion } from "./model/method-completion.interface";
-import IMethodReturn, { isMethodReturn } from "./model/method-return.interface";
-import { isMethodUnsubscribe } from "./model/method-unsubscribe.interface";
+import IMethodCall from "./model/method-call.interface";
+import IMethodReturn from "./model/method-return.interface";
+import Port from "./port";
 import { IMethodList } from "./types";
-import Port = browser.runtime.Port;
 
 interface IClientList {
     [id: string]: Port;
@@ -33,11 +18,6 @@ interface IClientList {
 
 interface IMethodMapping {
     [method: string]: string;
-}
-
-interface IPortMessage<M = any> {
-    readonly client: string;
-    readonly message: M;
 }
 
 export default class Router<M extends IMethodList> extends MethodHandler<M> implements IBroadcaster {
@@ -51,18 +31,13 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> impl
      */
     protected methodMapping: IMethodMapping = {};
 
-    protected readonly message$ = new Subject<IPortMessage>();
-
     public constructor(methods?: IMethodList) {
         super(methods);
 
-        this.initBroadcastHandling();
-        this.initMethodCallHandling();
-
-        fromEventPattern<Port>(
+        fromEventPattern<browser.runtime.Port>(
             (listener) => browser.runtime.onConnect.addListener(listener),
             (listener) => browser.runtime.onConnect.removeListener(listener),
-        ).subscribe((port) => this.onClientConnect(port));
+        ).subscribe((port) => this.onClientConnect(new Port(port)));
     }
 
     /**
@@ -109,110 +84,70 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> impl
             return;
         }
 
-        const disconnect$ = this.listenPortDisconnect(port);
-        const message$ = this.listenPortMessages(port).pipe(
-            takeUntil(disconnect$),
-        );
+        this.awaitMethodAdvertisement(port).subscribe(() => {
+                port.disconnect$.subscribe(() => this.handlePortDisconnect(port));
+                port.methodCall$.subscribe((call) => this.handleMethodCall(port, call));
+                port.broadcast$.subscribe(({ data, filter }) => this.sendBroadcast(
+                    data,
+                    new RegExp(filter.source, filter.flags),
+                ));
+            }, (e: TimeoutError | Error) => {
+                port.disconnect();
 
-        // Wait for method advertisement, then forward all message to this.message$ subject
-        this.awaitMethodAdvertisement(message$, port).pipe(
-            switchMapTo(message$),
-
-            // When port disconnects do cleanup
-            finalize(() => {
-                console.debug(`Client '${port.name}' disconnected`);
-                delete this.clients[port.name];
-
-                // Remove client methods from method mapping
-                this.methodMapping = Object.keys(this.methodMapping)
-                    .filter((method) => this.methodMapping[method] !== port.name)
-                    .reduce((mapping: IMethodMapping, method) => {
-                        mapping[method] = this.methodMapping[method];
-                        return mapping;
-                    }, {});
-            }),
-        ).subscribe(
-            (message) => this.message$.next({
-                message,
-                client: port.name,
-            }),
-            (e: TimeoutError | Error) => {
                 if (e instanceof TimeoutError) {
                     console.warn(`Client '${port.name}' did not advertise it's methods in time, disconnected`);
                 } else {
-                    console.error(`Unknown error for client '${port.name}'`, e);
+                    console.error(`Unknown error for client '${port.name}', disconnected`, e);
                 }
-
-                port.disconnect();
             },
         );
     }
 
     /**
-     * Start listening for broadcast events
+     * Cleans up after port disconnect
+     *
+     * @param {Port} port
      */
-    protected initBroadcastHandling() {
-        this.message$.pipe(
-            filter(({ message }) => isBroadcast(message)),
-        ).subscribe(({ message }: IPortMessage<IBroadcast>) => this.sendBroadcast(
-            message.data,
-            new RegExp(message.filter.source, message.filter.flags),
-        ));
+    protected handlePortDisconnect(port: Port) {
+        console.debug(`Client '${port.name}' disconnected`);
+
+        delete this.clients[port.name];
+
+        // Remove client methods from method mapping
+        this.methodMapping = Object.keys(this.methodMapping)
+            .filter((method) => this.methodMapping[method] !== port.name)
+            .reduce((mapping: IMethodMapping, method) => {
+                mapping[method] = this.methodMapping[method];
+                return mapping;
+            }, {});
     }
 
     /**
-     * Listen for method
+     * Handle incoming method calls from ports
+     *
+     * @param {Port} port
+     * @param {IMethodCall} call
      */
-    protected initMethodCallHandling() {
-        this.message$.pipe(
-            filter(({ message }) => isMethodCall(message)),
-        ).subscribe(({ client, message }) => this.handleMethodCall(client, message));
-    }
-
-    /**
-     * Route method call to correct handler
-     */
-    protected handleMethodCall(clientName: string, call: IMethodCall) {
-        console.debug(`Handling method call from client '${clientName}'`, { ...call });
+    protected handleMethodCall(port: Port, call: IMethodCall) {
+        console.debug(`Handling method call from client '${port.name}'`, { ...call });
 
         const { method, args, id } = call;
 
         let out$: Observable<IMessage<any>>;
         if (this.methodList.hasOwnProperty(method)) {
-            console.debug(`Handling client call locally`, { ...call });
-            out$ = super.callMethod(method, args);
+            console.debug("Handling client call locally", { ...call });
+            out$ = super.callMethod(method, args).pipe(
+                takeUntil(race(port.disconnect$, port.onMethodUnsubscribe(id))),
+            );
         } else if (this.methodMapping.hasOwnProperty(method)) {
+            console.debug("Handling call remotely", { ...call });
             const handler = this.clients[this.methodMapping[method]];
-            handler.postMessage(handler);
 
-            const complete$: Observable<any> = this.message$.pipe(
-                filter(({ message }) => isMethodCompletion(message) && message.id === id),
-                take(1),
-            );
-
-            out$ = this.message$.pipe(
-                map(({ message }) => message as IMethodReturn),
-                filter((message) => isMethodReturn(message) && message.id === id),
-
-                takeUntil(complete$),
-            );
+            out$ = handler.sendPreparedMethodCall(call);
         } else {
             console.warn(`Call to unknown method '${method}'`, { name: method, args });
             out$ = throwError(new MethodNotFoundException(method));
         }
-
-        const client = this.clients[clientName];
-
-        const disconnect$ = fromEventPattern(
-            (handler) => client.onDisconnect.addListener(handler),
-            (handler) => client.onDisconnect.removeListener(handler),
-        ).pipe(take(1));
-
-        const unsubscribe$ = this.message$.pipe(
-            filter(({ message }) => isMethodUnsubscribe(message) && message.id === id),
-            take(1),
-            tap(() => console.debug(`Client ${clientName} unsubscribed from method call`, { id, method })),
-        );
 
         out$.pipe(
             map((value): IMethodReturn => ({
@@ -229,62 +164,20 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> impl
                 message: e.message,
                 stack: e.stack,
             } as IError)),
-
-            takeUntil(race(disconnect$, unsubscribe$)),
-            finalize(() => {
-                try {
-                    client.postMessage({
-                        type: MessageTypes.MethodCompletion,
-                        id,
-                    } as IMethodCompletion);
-                } catch {
-                    // TODO Better solution
-                    // Port might be closed, ignore
-                }
-            }),
-        ).subscribe((msg) => client.postMessage(msg));
-    }
-
-    /**
-     * Listen for the port disconnect event, returns an observable that emits once on disconnect
-     */
-    protected listenPortDisconnect(port: Port): Observable<Port> {
-        return fromEventPattern<Port>(
-            (listener) => port.onDisconnect.addListener(listener),
-            (listener) => port.onDisconnect.removeListener(listener),
-        ).pipe(
-            take(1),
-        );
-    }
-
-    /**
-     * Listen to all messages received on the port
-     */
-    protected listenPortMessages(port: Port): Observable<any> {
-        return fromEventPattern<[any, any]>(
-            (listener) => port.onMessage.addListener(listener),
-            (listener) => port.onMessage.removeListener(listener),
-        ).pipe(
-            map(([msg]) => msg),
-            filter((msg) => isMessage(msg)),
-        );
+        ).subscribe((msg) => port.postMessage(msg));
     }
 
     /**
      * Wait for the client to advertise it's methods and register them
      */
-    protected awaitMethodAdvertisement(message$: Observable<any>, port: Port): Observable<void> {
-        return message$.pipe(
-            // Wait for method advertisement
-            filter((msg) => isMethodAdvertisement(msg)),
-            take(1),
-
+    protected awaitMethodAdvertisement(port: Port): Observable<void> {
+        return port.methodAdvertisement$.pipe(
             // Register client
             tap(() => { this.clients[port.name] = port; }),
 
             // Register client methods
-            switchMap(({ methods }: IMethodAdvertisement) => methods),
-            filter((method) => {
+            switchMap(({ methods }) => methods),
+            rxFilter((method) => {
                 if (this.methodMapping.hasOwnProperty(method)) {
                     console.warn(`Client '${port.name}' tried to re-register method '${method}'`);
                     return false;

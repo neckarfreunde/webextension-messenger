@@ -1,53 +1,33 @@
-import { BehaviorSubject, fromEventPattern, merge, Observable, throwError } from "rxjs";
-import { filter, finalize, map, switchMap, take, takeUntil, tap } from "rxjs/operators";
+import { BehaviorSubject, Observable, throwError } from "rxjs";
 import { v4 } from "uuid";
 import ConnectionStatus from "./connection-status.enum";
-import RemoteMethodException from "./exceptions/remote-method.exception";
+import MessengerException from "./exceptions/messenger.exception";
 import IBroadcaster from "./interfaces/broadcaster.interface";
 import MethodHandler from "./method-handler";
-import { IBroadcast, isBroadcast } from "./model/broadcast.interface";
-import { isError } from "./model/error.interface";
-import { isMessage } from "./model/message.interface";
+import { IBroadcast } from "./model/broadcast.interface";
 import MessageTypes from "./model/messate-types.enum";
 import IMethodAdvertisement from "./model/method-advertisement.interface";
-import IMethodCall from "./model/method-call.interface";
-import IMethodCompletion, { isMethodCompletion } from "./model/method-completion.interface";
-import IMethodReturn, { isMethodReturn } from "./model/method-return.interface";
-import IMethodUnsubscribe from "./model/method-unsubscribe.interface";
+import Port from "./port";
 import { IMethodList } from "./types";
 
-// TODO Separate broadcaster?
-// TODO On unsubscribe from method call send signal to handler
 export default class Connection<M extends IMethodList> extends MethodHandler<M> implements IBroadcaster {
     public get status$(): Observable<ConnectionStatus> {
         return this.statusSub.asObservable();
     }
 
     public get broadcast$(): Observable<any> {
-        return this.message$.pipe(
-            filter((msg) => isBroadcast(msg)),
-            map(({ data }: IBroadcast) => data),
-        );
+        if (!this.port) {
+            return throwError(new MessengerException("Port not ready"));
+        }
+
+        return this.port.broadcast$;
     }
 
     protected readonly id: string;
 
-    protected port?: browser.runtime.Port;
+    protected port?: Port;
 
     protected statusSub = new BehaviorSubject(ConnectionStatus.Connecting);
-
-    protected readonly message$: Observable<any> = this.status$.pipe(
-        filter((status) => status === ConnectionStatus.Connected),
-        take(1),
-
-        switchMap(() => fromEventPattern<[any, any]>(
-            (handler) => this.port!.onMessage.addListener(handler),
-            (handler) => this.port!.onMessage.removeListener(handler),
-        )),
-
-        map(([msg]) => msg),
-        filter((msg) => isMessage(msg)),
-    );
 
     public constructor(prefix?: string, methods?: IMethodList) {
         super(methods);
@@ -82,7 +62,9 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
      */
     public connect() {
         try {
-            this.port = browser.runtime.connect(void 0, { name: this.id });
+            this.port = new Port(
+                browser.runtime.connect(void 0, { name: this.id }),
+            );
         } catch (e) {
             this.statusSub.next(ConnectionStatus.Failed);
             return;
@@ -95,22 +77,7 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
         };
         this.port!.postMessage(methods);
 
-        const disconnect$ = fromEventPattern(
-            (listener) => this.port!.onDisconnect.addListener(listener),
-            (listener) => this.port!.onDisconnect.removeListener(listener),
-        ).pipe(take(1));
-
-        disconnect$.subscribe(() => this.statusSub.next(ConnectionStatus.Closed));
-
-        fromEventPattern<any>(
-            (listener) => this.port!.onMessage.addListener(listener),
-            (listener) => this.port!.onMessage.removeListener(listener),
-        ).pipe(
-            map(([message]) => message),
-            filter((msg) => isMessage(msg)),
-
-            takeUntil(disconnect$),
-        );
+        this.port.disconnect$.subscribe(() => this.statusSub.next(ConnectionStatus.Closed));
 
         this.statusSub.next(ConnectionStatus.Connected);
     }
@@ -125,64 +92,8 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
             return super.callMethod(method, args);
         }
 
-        const id = v4();
-        console.debug("Calling remote method", { id, method, args });
+        console.debug("Calling remote method", { method, args });
 
-        const methodCall: IMethodCall = {
-            type: MessageTypes.MethodCall,
-            id,
-            method,
-            args,
-        };
-
-        this.port!.postMessage(methodCall);
-
-        let completed = false;
-        const complete$: Observable<IMethodCompletion> = this.message$.pipe(
-            filter((msg) => isMethodCompletion(msg) && msg.id === id),
-            take(1),
-            tap(() => {
-                completed = true;
-                console.debug("Method call complete", { id, method });
-            }),
-        );
-
-        const error$ = this.message$.pipe(
-            filter((msg) => isError(msg) && msg.id === id),
-            take(1),
-            tap(({ message, stack }) => console.debug("Method call failure", { id, message, stack })),
-
-            switchMap(({ message, stack }) => throwError(new RemoteMethodException(message, stack))),
-        );
-
-        const return$: Observable<IMethodReturn> = this.message$.pipe(
-            filter((msg) => isMethodReturn(msg) && msg.id === id),
-            tap(console.log),
-            map(({ value }: IMethodReturn) => {
-                console.debug("Received method call return", {
-                    id,
-                    method,
-                    return: value,
-                });
-
-                return value;
-            }),
-        );
-
-        return merge(return$, error$).pipe(
-            // Return values until completion
-            takeUntil(complete$),
-            finalize(() => {
-                if (!completed) {
-                    // Stop method execution on the other end
-                    this.port!.postMessage({
-                        type: MessageTypes.MethodUnsubscribe,
-                        id,
-                    } as IMethodUnsubscribe);
-                }
-
-                console.debug("Return stream closed", { id, method, completed });
-            }),
-        );
+        return this.port!.callMethod(method, args);
     }
 }

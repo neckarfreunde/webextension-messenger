@@ -4,22 +4,21 @@ import { fromEventPattern, merge, Observable, race, throwError } from "rxjs";
 import { filter, finalize, map, shareReplay, switchMap, take, takeUntil, tap } from "rxjs/operators";
 import { v4 } from "uuid";
 import RemoteMethodException from "./exceptions/remote-method.exception";
-import { IBroadcast, isBroadcast } from "./model/broadcast.interface";
-import { isError } from "./model/error.interface";
-import IMessage, { isMessage } from "./model/message.interface";
-import MessageTypes from "./model/messate-types.enum";
-import IMethodAdvertisement, { isMethodAdvertisement } from "./model/method-advertisement.interface";
-import IMethodCall, { isMethodCall } from "./model/method-call.interface";
-import IMethodCompletion, { isMethodCompletion } from "./model/method-completion.interface";
-import IMethodReturn, { isMethodReturn } from "./model/method-return.interface";
-import IMethodUnsubscribe, { isMethodUnsubscribe } from "./model/method-unsubscribe.interface";
+import { IBroadcast, isBroadcast } from "./models/broadcast.interface";
+import { isError } from "./models/error.interface";
+import IMessage, { isMessage } from "./models/message.interface";
+import MessageTypes from "./models/messate-types.enum";
+import IMethodAdvertisement, { isMethodAdvertisement } from "./models/method-advertisement.interface";
+import IMethodCall, { isMethodCall } from "./models/method-call.interface";
+import IMethodCompletion, { isMethodCompletion } from "./models/method-completion.interface";
+import IMethodReturn, { isMethodReturn } from "./models/method-return.interface";
+import IMethodUnsubscribe, { isMethodUnsubscribe } from "./models/method-unsubscribe.interface";
 import { makeVoid } from "./utils/operators";
 
-// TODO Debug logging
 /**
  * Wrapper around browser.runtime.Port object that provides common helper properties/methods
  */
-export default class Port {
+export default class PortWrapper {
     public readonly disconnect$: Observable<void> = this.listenDisconnect();
 
     protected readonly message$: Observable<IMessage<any>> = this.listenMessages();

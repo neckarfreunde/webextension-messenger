@@ -5,13 +5,13 @@ import ConnectionStatus from "./connection-status.enum";
 import MessengerException from "./exceptions/messenger.exception";
 import IBroadcaster from "./interfaces/broadcaster.interface";
 import MethodHandler from "./method-handler";
-import { IBroadcast } from "./model/broadcast.interface";
-import IError from "./model/error.interface";
-import MessageTypes from "./model/messate-types.enum";
-import IMethodAdvertisement from "./model/method-advertisement.interface";
-import IMethodCompletion from "./model/method-completion.interface";
-import IMethodReturn from "./model/method-return.interface";
-import Port from "./port";
+import { IBroadcast } from "./models/broadcast.interface";
+import IError from "./models/error.interface";
+import MessageTypes from "./models/messate-types.enum";
+import IMethodAdvertisement from "./models/method-advertisement.interface";
+import IMethodCompletion from "./models/method-completion.interface";
+import IMethodReturn from "./models/method-return.interface";
+import PortWrapper from "./port-wrapper";
 import { IMethodList } from "./types";
 
 export default class Connection<M extends IMethodList> extends MethodHandler<M> implements IBroadcaster {
@@ -29,7 +29,7 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
 
     protected readonly id: string;
 
-    protected port?: Port;
+    protected port?: PortWrapper;
 
     protected statusSub = new BehaviorSubject(ConnectionStatus.Connecting);
 
@@ -37,6 +37,32 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
         super(methods);
 
         this.id = `${(prefix) ? `${prefix}:` : ""}${v4()}`;
+    }
+
+    /**
+     * Open runtime connection
+     */
+    public connect() {
+        try {
+            this.port = new PortWrapper(
+                browser.runtime.connect(void 0, { name: this.id }),
+            );
+        } catch (e) {
+            this.statusSub.next(ConnectionStatus.Failed);
+            return;
+        }
+
+        // Register methods with router
+        const methods: IMethodAdvertisement = {
+            type: MessageTypes.MethodAdvertisement,
+            methods: Object.keys(this.methodList),
+        };
+        this.port!.postMessage(methods);
+
+        this.port.methodCall$.subscribe(({ id, method, args }) => this.handleMethodCall(id, method, args));
+        this.port.disconnect$.subscribe(() => this.statusSub.next(ConnectionStatus.Closed));
+
+        this.statusSub.next(ConnectionStatus.Connected);
     }
 
     /**
@@ -59,32 +85,6 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
         console.debug("Sending broadcast", broadcast);
 
         this.port!.postMessage(broadcast);
-    }
-
-    /**
-     * Open runtime connection
-     */
-    public connect() {
-        try {
-            this.port = new Port(
-                browser.runtime.connect(void 0, { name: this.id }),
-            );
-        } catch (e) {
-            this.statusSub.next(ConnectionStatus.Failed);
-            return;
-        }
-
-        // Register methods with router
-        const methods: IMethodAdvertisement = {
-            type: MessageTypes.MethodAdvertisement,
-            methods: Object.keys(this.methodList),
-        };
-        this.port!.postMessage(methods);
-
-        this.port.methodCall$.subscribe(({ id, method, args }) => this.handleMethodCall(id, method, args));
-        this.port.disconnect$.subscribe(() => this.statusSub.next(ConnectionStatus.Closed));
-
-        this.statusSub.next(ConnectionStatus.Connected);
     }
 
     /**

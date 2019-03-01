@@ -3,17 +3,17 @@ import { catchError, filter as rxFilter, map, switchMap, takeUntil, tap, timeout
 import MethodNotFoundException from "./exceptions/method-not-found.exception";
 import IBroadcaster from "./interfaces/broadcaster.interface";
 import MethodHandler from "./method-handler";
-import { IBroadcast } from "./model/broadcast.interface";
-import IError from "./model/error.interface";
-import IMessage from "./model/message.interface";
-import MessageTypes from "./model/messate-types.enum";
-import IMethodCall from "./model/method-call.interface";
-import IMethodReturn from "./model/method-return.interface";
-import Port from "./port";
+import { IBroadcast } from "./models/broadcast.interface";
+import IError from "./models/error.interface";
+import IMessage from "./models/message.interface";
+import MessageTypes from "./models/messate-types.enum";
+import IMethodCall from "./models/method-call.interface";
+import IMethodReturn from "./models/method-return.interface";
+import PortWrapper from "./port-wrapper";
 import { IMethodList } from "./types";
 
 interface IClientList {
-    [id: string]: Port;
+    [id: string]: PortWrapper;
 }
 
 interface IMethodMapping {
@@ -37,7 +37,7 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> impl
         fromEventPattern<browser.runtime.Port>(
             (listener) => browser.runtime.onConnect.addListener(listener),
             (listener) => browser.runtime.onConnect.removeListener(listener),
-        ).subscribe((port) => this.onClientConnect(new Port(port)));
+        ).subscribe((port) => this.onClientConnect(new PortWrapper(port)));
     }
 
     /**
@@ -70,7 +70,6 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> impl
         });
     }
 
-    // TODO Create intermediary class with similar code from Router and Connection?
     /**
      * @inheritDoc
      */
@@ -88,7 +87,7 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> impl
         return handler.callMethod(method, args);
     }
 
-    protected onClientConnect(port: Port) {
+    protected onClientConnect(port: PortWrapper) {
         console.debug(`New client connecting: ${port.name || "no-name"}`, port);
 
         if (!port.name || port.name.length === 0) {
@@ -123,9 +122,9 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> impl
     /**
      * Cleans up after port disconnect
      *
-     * @param {Port} port
+     * @param {PortWrapper} port
      */
-    protected handlePortDisconnect(port: Port) {
+    protected handlePortDisconnect(port: PortWrapper) {
         console.debug(`Client '${port.name}' disconnected`);
 
         delete this.clients[port.name];
@@ -142,10 +141,10 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> impl
     /**
      * Handle incoming method calls from ports
      *
-     * @param {Port} port
+     * @param {PortWrapper} port
      * @param {IMethodCall} call
      */
-    protected handleMethodCall(port: Port, call: IMethodCall) {
+    protected handleMethodCall(port: PortWrapper, call: IMethodCall) {
         console.debug(`Handling method call from client '${port.name}'`, { ...call });
 
         const { method, args, id } = call;
@@ -187,7 +186,7 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> impl
     /**
      * Wait for the client to advertise it's methods and register them
      */
-    protected awaitMethodAdvertisement(port: Port): Observable<void> {
+    protected awaitMethodAdvertisement(port: PortWrapper): Observable<void> {
         return port.methodAdvertisement$.pipe(
             // Register client
             tap(() => { this.clients[port.name] = port; }),

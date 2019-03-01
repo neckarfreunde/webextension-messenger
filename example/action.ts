@@ -4,6 +4,7 @@ import ConnectionStatus from "../src/connection-status.enum";
 import { AllMethods, IActionMethods } from "./interfaces";
 
 const btnBroadcast = document.getElementById("btnBroadcast") as HTMLButtonElement;
+const btnReload = document.getElementById("btnReload") as HTMLButtonElement;
 const divStatus = document.getElementById("divStatus") as HTMLDivElement;
 const divTime = document.getElementById("divTime") as HTMLDivElement;
 
@@ -31,3 +32,6 @@ connection.connect();
 btnBroadcast.addEventListener("click", () => connection.sendBroadcast({
     time: Date.now(),
 }, /^content:.*/));
+
+btnReload.addEventListener("click", () => connection.methods.reload("because i say so")
+    .subscribe());

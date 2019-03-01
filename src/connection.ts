@@ -1,12 +1,16 @@
-import { BehaviorSubject, Observable, throwError } from "rxjs";
+import { BehaviorSubject, Observable, of, throwError } from "rxjs";
+import { catchError, finalize } from "rxjs/operators";
 import { v4 } from "uuid";
 import ConnectionStatus from "./connection-status.enum";
 import MessengerException from "./exceptions/messenger.exception";
 import IBroadcaster from "./interfaces/broadcaster.interface";
 import MethodHandler from "./method-handler";
 import { IBroadcast } from "./model/broadcast.interface";
+import IError from "./model/error.interface";
 import MessageTypes from "./model/messate-types.enum";
 import IMethodAdvertisement from "./model/method-advertisement.interface";
+import IMethodCompletion from "./model/method-completion.interface";
+import IMethodReturn from "./model/method-return.interface";
 import Port from "./port";
 import { IMethodList } from "./types";
 
@@ -77,6 +81,7 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
         };
         this.port!.postMessage(methods);
 
+        this.port.methodCall$.subscribe(({ id, method, args }) => this.handleMethodCall(id, method, args));
         this.port.disconnect$.subscribe(() => this.statusSub.next(ConnectionStatus.Closed));
 
         this.statusSub.next(ConnectionStatus.Connected);
@@ -93,7 +98,35 @@ export default class Connection<M extends IMethodList> extends MethodHandler<M> 
         }
 
         console.debug("Calling remote method", { method, args });
-
         return this.port!.callMethod(method, args);
+    }
+
+    /**
+     * Handle incoming method calls
+     *
+     * @param {string} id
+     * @param {string} method
+     * @param {Array} args
+     */
+    protected handleMethodCall(id: string, method: string, args: any[]) {
+        super.callMethod(method, args)
+            .pipe(
+                catchError((e: Error) => of({
+                    type: MessageTypes.Error,
+                    id,
+                    message: e.message,
+                    stack: e.stack,
+                } as IError)),
+
+                finalize(() => this.port!.postMessage({
+                    type: MessageTypes.MethodCompletion,
+                    id,
+                } as IMethodCompletion)),
+            ).subscribe((value) => this.port!.postMessage({
+                type: MessageTypes.MethodReturn,
+                id,
+                value,
+            } as IMethodReturn),
+        );
     }
 }

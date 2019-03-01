@@ -30,15 +30,21 @@ export default abstract class MethodHandler<M extends IMethodList> {
             return throwError(new MethodNotFoundException(method));
         }
 
-        const fnReturn = this.methodList[method](...args);
+        try {
+            const fnReturn = this.methodList[method](...args);
 
-        if (isObservable(fnReturn)) {
-            return fnReturn;
+            let obs$: Observable<any>;
+            if (isObservable(fnReturn)) {
+                obs$ = fnReturn;
+            } else if (fnReturn instanceof Promise) {
+                obs$ = from(fnReturn);
+            } else {
+                obs$ = of(fnReturn);
+            }
+
+            return obs$;
+        } catch (e) {
+            return throwError(e);
         }
-
-        // noinspection SuspiciousTypeOfGuard
-        return (fnReturn instanceof Promise)
-            ? from(fnReturn)
-            : of(fnReturn);
     }
 }

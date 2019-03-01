@@ -65,10 +65,27 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> impl
                 console.debug(`Emitting broadcast to client '${client}'`, message);
                 this.clients[client].postMessage(message);
             } catch {
-                // TODO Encapsulate clients in object for easier state checking?
                 // Failure, ignore for now
             }
         });
+    }
+
+    // TODO Create intermediary class with similar code from Router and Connection?
+    /**
+     * @inheritDoc
+     */
+    public callMethod(method: string, args: any[]): Observable<any> {
+        if (this.methodList.hasOwnProperty(method)) {
+            console.debug("Handle method call locally", { method, args });
+            return super.callMethod(method, args);
+        } else if (!this.methodMapping.hasOwnProperty(method)) {
+            return throwError(new MethodNotFoundException(method));
+        }
+
+        console.debug("Handling call remotely", { method, args });
+        const handler = this.clients[this.methodMapping[method]];
+
+        return handler.callMethod(method, args);
     }
 
     protected onClientConnect(port: Port) {

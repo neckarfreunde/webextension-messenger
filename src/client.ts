@@ -14,7 +14,7 @@ export default class Client<M extends IMethodList> extends MethodProxy<M> implem
         return this.statusSub.asObservable();
     }
 
-    public get broadcast$(): Observable<any> {
+    public get broadcast$(): Observable<IBroadcast<any>> {
         if (!this.port) {
             return throwError(new MessengerException("Port not ready"));
         }

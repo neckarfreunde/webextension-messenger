@@ -1,17 +1,50 @@
 import { Observable, timer } from "rxjs";
-import { map, take } from "rxjs/operators";
+import { map } from "rxjs/operators";
 import Router from "../src/router";
 import { IMethodList } from "../src/types";
 
+interface IRandConfig {
+    min: number;
+    max: number;
+}
+
 export interface IBgMethods extends IMethodList {
-    bgTimeSubscribe: (limit?: number) => Observable<number>;
+    subscribeTime: () => Observable<string>;
+    randInt: (config: IRandConfig) => number;
+    setTimeout: (duration: number) => Promise<void>;
 }
 
 const methods: IBgMethods = {
-    bgTimeSubscribe: (limit: number = Infinity) => timer(0, 1000).pipe(
-        map(() => Math.round(Date.now() / 1000)),
-        take(limit),
+    /**
+     * Example of a continuous observable subscription
+     */
+    subscribeTime: () => timer(0, 1000).pipe(
+        map(() => {
+            const now = new Date();
+            return `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+        }),
     ),
+
+    /**
+     * Example of a one of return value
+     */
+    randInt: ({ min, max }: IRandConfig): number => {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+
+        return Math.floor(Math.random() * (max - min) + min);
+    },
+
+    /**
+     * Example of a one of promise
+     */
+    setTimeout: (duration: number) => new Promise((resolve) => {
+        console.log("set timeout");
+        setTimeout(() => {
+            console.log("resolve");
+            resolve(void 0);
+        }, duration);
+    }),
 };
 
 const router = new Router<IBgMethods>(methods);

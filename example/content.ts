@@ -1,15 +1,28 @@
-import { filter, mergeMap, take } from "rxjs/operators";
+import { timer } from "rxjs";
+import { concatMap, filter, map } from "rxjs/operators";
 import Client from "../src/client";
-import ConnectionStatus from "../src/connection-status.enum";
 import { IBgMethods } from "./bg";
+import { isRandNumber } from "./rand-number.interface";
 
 const connection = new Client<IBgMethods>("content");
 connection.connect();
 
-connection.status$.pipe(
-    filter((c) => c === ConnectionStatus.Connected),
-    mergeMap(() => connection.methods.bgTimeSubscribe()),
-    take(3),
-).subscribe(console.log.bind(void 0, "got time"));
+const notif = document.createElement("div");
+notif.style.position = "absolute";
+notif.style.left = "5px";
+notif.style.top = "5px";
+notif.style.zIndex = "99999";
+notif.style.border = "1px solid #000";
+notif.style.background = "#ffff";
+notif.style.padding = "5px";
 
-connection.broadcast$.subscribe(console.log.bind(void 0, "broadcast"));
+connection.broadcast$.pipe(
+    map(({ data }) => data),
+    filter(isRandNumber),
+    concatMap(({ randNumber }) => {
+        notif.innerText = `Lucky number of the day ${randNumber}`;
+        document.body.appendChild(notif);
+
+        return timer(4000);
+    }),
+).subscribe(() => document.body.removeChild(notif));

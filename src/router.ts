@@ -1,11 +1,12 @@
 import { fromEventPattern, of, race } from "rxjs";
-import { catchError, map, takeUntil, tap } from "rxjs/operators";
+import { catchError, finalize, map, takeUntil, tap } from "rxjs/operators";
 import IBroadcaster from "./interfaces/broadcaster.interface";
 import MethodHandler from "./method-handler";
 import { IBroadcast } from "./models/broadcast.interface";
 import IError from "./models/error.interface";
 import MessageTypes from "./models/message-types.enum";
 import IMethodCall from "./models/method-call.interface";
+import IMethodCompletion from "./models/method-completion.interface";
 import IMethodReturn from "./models/method-return.interface";
 import PortWrapper from "./port-wrapper";
 import { IMethodList } from "./types";
@@ -115,12 +116,23 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> impl
 
             takeUntil(race(port.disconnect$, port.onMethodUnsubscribe(id))),
 
+            // Translate error into messages
             catchError((e: Error) => of({
                 type: MessageTypes.Error,
                 id,
                 message: e.message,
                 stack: e.stack,
             } as IError)),
+
+            // Complete method call
+            finalize(() => {
+                if (!port.closed) {
+                    port.postMessage({
+                        type: MessageTypes.MethodCompletion,
+                        id,
+                    } as IMethodCompletion);
+                }
+            }),
         ).subscribe((msg) => port.postMessage(msg));
     }
 }

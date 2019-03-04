@@ -22,6 +22,8 @@ export default class PortWrapper {
 
     protected readonly message$: Observable<IMessage<any>> = this.listenMessages();
 
+    protected isClosed = false;
+
     public readonly methodCall$: Observable<IMethodCall> = this.message$.pipe(
         filter(isMethodCall),
     );
@@ -46,6 +48,10 @@ export default class PortWrapper {
         filter(isError),
         map(({ id, message, stack }) => new RemoteMethodException(id, message, stack)),
     );
+
+    public get closed(): boolean {
+        return this.isClosed;
+    }
 
     public get name(): string {
         return this.port.name;
@@ -156,6 +162,7 @@ export default class PortWrapper {
         ).pipe(
             makeVoid(),
             take(1),
+            tap(() => { this.isClosed = true; }),
         );
     }
 

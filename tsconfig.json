@@ -1,8 +1,10 @@
 {
   "compilerOptions": {
-    "target": "es2015",
+    "target": "es2017",
     "module": "commonjs",
     "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
     "removeComments": true,
     "strict": true,
     "noImplicitAny": true,
@@ -16,10 +18,20 @@
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
+    "stripInternal": true,
+    "outDir": "lib/",
     "lib": [
       "dom",
       "es6",
       "es2017"
     ]
-  }
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "**/*.spec.*",
+    "**/__mocks__",
+    "example"
+  ]
 }

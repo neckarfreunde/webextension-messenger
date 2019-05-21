@@ -8,6 +8,8 @@
   "scripts": {
     "lint": "tslint --project .",
     "test": "jest",
+    "cleanup": "shx --silent rm -r lib/",
+    "build": "yarn cleanup; NODE_ENV=production tsc",
     "watch-example": "NODE_ENV=development nodemon --watch . --ignore example/build/ -e ts,json --exec yarn build-example",
     "build-example": "webpack --config example/webpack.config.js"
   },
@@ -25,6 +27,7 @@
     "jest": "^24.1.0",
     "jest-webextension-mock": "^3.5.0",
     "nodemon": "^1.18.10",
+    "shx": "^0.3.2",
     "ts-jest": "^24.0.0",
     "ts-loader": "^5.3.3",
     "tslint": "^5",

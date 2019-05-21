@@ -1,7 +1,7 @@
 import { from, isObservable, Observable, of, throwError } from "rxjs";
-import MethodNotFoundException from "./exceptions/method-not-found.exception";
+import MethodNotFoundException from "../exceptions/method-not-found.exception";
+import { IMethodList } from "../types";
 import MethodProxy from "./method-proxy";
-import { IMethodList } from "./types";
 
 export default abstract class MethodHandler<M extends IMethodList> extends MethodProxy<M> {
     protected constructor(

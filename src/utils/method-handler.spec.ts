@@ -1,10 +1,8 @@
-/* tslint:disable:forin */
-
 import { interval, Observable } from "rxjs";
 import { take, toArray } from "rxjs/operators";
-import MethodNotFoundException from "./exceptions/method-not-found.exception";
+import MethodNotFoundException from "../exceptions/method-not-found.exception";
+import { IMethodList } from "../types";
 import MethodHandler from "./method-handler";
-import { IMethodList } from "./types";
 
 interface ITestMethods extends IMethodList {
     plain: (name: string) => string;

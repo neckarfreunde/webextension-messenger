@@ -1,15 +1,15 @@
 import { fromEventPattern, of, race } from "rxjs";
 import { catchError, finalize, map, takeUntil, tap } from "rxjs/operators";
 import IBroadcaster from "./interfaces/broadcaster.interface";
-import MethodHandler from "./method-handler";
 import { IBroadcast } from "./models/broadcast.interface";
 import IError from "./models/error.interface";
 import MessageTypes from "./models/message-types.enum";
 import IMethodCall from "./models/method-call.interface";
 import IMethodCompletion from "./models/method-completion.interface";
 import IMethodReturn from "./models/method-return.interface";
-import PortWrapper from "./port-wrapper";
 import { IMethodList } from "./types";
+import MethodHandler from "./utils/method-handler";
+import PortWrapper from "./utils/port-wrapper";
 
 interface IClientList {
     [id: string]: PortWrapper;

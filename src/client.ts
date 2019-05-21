@@ -3,11 +3,11 @@ import { v4 } from "uuid";
 import ConnectionStatus from "./connection-status.enum";
 import MessengerException from "./exceptions/messenger.exception";
 import IBroadcaster from "./interfaces/broadcaster.interface";
-import MethodProxy from "./method-proxy";
 import { IBroadcast } from "./models/broadcast.interface";
 import MessageTypes from "./models/message-types.enum";
-import PortWrapper from "./port-wrapper";
 import { IMethodList } from "./types";
+import MethodProxy from "./utils/method-proxy";
+import PortWrapper from "./utils/port-wrapper";
 
 export default class Client<M extends IMethodList> extends MethodProxy<M> implements IBroadcaster {
     public get status$(): Observable<ConnectionStatus> {

@@ -3,16 +3,16 @@
 import { fromEventPattern, merge, Observable, race, throwError } from "rxjs";
 import { filter, finalize, map, switchMap, take, takeUntil, tap } from "rxjs/operators";
 import { v4 } from "uuid";
-import RemoteMethodException from "./exceptions/remote-method.exception";
-import { IBroadcast, isBroadcast } from "./models/broadcast.interface";
-import { isError } from "./models/error.interface";
-import MessageTypes from "./models/message-types.enum";
-import IMessage, { isMessage } from "./models/message.interface";
-import IMethodCall, { isMethodCall } from "./models/method-call.interface";
-import IMethodCompletion, { isMethodCompletion } from "./models/method-completion.interface";
-import IMethodReturn, { isMethodReturn } from "./models/method-return.interface";
-import IMethodUnsubscribe, { isMethodUnsubscribe } from "./models/method-unsubscribe.interface";
-import { makeVoid } from "./utils/operators";
+import RemoteMethodException from "../exceptions/remote-method.exception";
+import { IBroadcast, isBroadcast } from "../models/broadcast.interface";
+import { isError } from "../models/error.interface";
+import MessageTypes from "../models/message-types.enum";
+import IMessage, { isMessage } from "../models/message.interface";
+import IMethodCall, { isMethodCall } from "../models/method-call.interface";
+import IMethodCompletion, { isMethodCompletion } from "../models/method-completion.interface";
+import IMethodReturn, { isMethodReturn } from "../models/method-return.interface";
+import IMethodUnsubscribe, { isMethodUnsubscribe } from "../models/method-unsubscribe.interface";
+import { makeVoid } from "./operators";
 
 /**
  * Wrapper around browser.runtime.Port object that provides common helper properties/methods
@@ -69,6 +69,12 @@ export default class PortWrapper {
         this.port.disconnect();
     }
 
+    /**
+     * Call remote method
+     *
+     * @param {string} method
+     * @param {array} args
+     */
     public callMethod(method: string, args: any[]): Observable<any> {
         return this.sendPreparedMethodCall({
             type: MessageTypes.MethodCall,
@@ -79,11 +85,23 @@ export default class PortWrapper {
     }
 
     /**
+     * Listen for method unsubscription
+     *
+     * @param {string} id - The method call ID
+     */
+    public onMethodUnsubscribe(id: string): Observable<IMethodUnsubscribe> {
+        return this.methodUnsubscribe$.pipe(
+            filter((msg) => msg.id === id),
+            take(1),
+        );
+    }
+
+    /**
      * Send already prepared method call
      *
      * @param {IMethodCall} call - The method call to send
      */
-    public sendPreparedMethodCall(call: IMethodCall): Observable<any> {
+    protected sendPreparedMethodCall(call: IMethodCall): Observable<any> {
         const { id, method } = call;
 
         let completed = false;
@@ -137,18 +155,6 @@ export default class PortWrapper {
 
                 console.debug("Return stream closed", { id, method, completed });
             }),
-        );
-    }
-
-    /**
-     * Listen for method unsubscription
-     *
-     * @param {string} id - The method call ID
-     */
-    public onMethodUnsubscribe(id: string): Observable<IMethodUnsubscribe> {
-        return this.methodUnsubscribe$.pipe(
-            filter((msg) => msg.id === id),
-            take(1),
         );
     }
 

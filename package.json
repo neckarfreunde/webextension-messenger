@@ -4,7 +4,12 @@
   "main": "index.js",
   "author": "Robin Thomas <robin@mycrm.de>",
   "license": "MIT",
-  "private": true,
+  "private": false,
+  "files": [
+    "lib/",
+    "LICENSE",
+    "readme.md"
+  ],
   "scripts": {
     "lint": "tslint --project .",
     "test": "jest",

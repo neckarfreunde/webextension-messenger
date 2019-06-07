@@ -1,3 +1,6 @@
+/**
+ * @internal
+ */
 export default interface IBroadcaster {
     /**
      * Send broadcast to all clients that match the given filter

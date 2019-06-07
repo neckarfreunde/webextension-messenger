@@ -1,7 +1,6 @@
 import { fromEvent, merge } from "rxjs";
 import { concatMap, filter, switchMap, take, tap } from "rxjs/operators";
-import Client from "../src/client";
-import ConnectionStatus from "../src/connection-status.enum";
+import { Client, ConnectionStatus } from "../src";
 import { IBgMethods } from "./bg";
 import IRandNumber from "./rand-number.interface";
 

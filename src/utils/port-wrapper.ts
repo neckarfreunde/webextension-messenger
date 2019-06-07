@@ -16,6 +16,8 @@ import { makeVoid } from "./operators";
 
 /**
  * Wrapper around browser.runtime.Port object that provides common helper properties/methods
+ *
+ * @internal
  */
 export default class PortWrapper {
     public readonly disconnect$: Observable<void> = this.listenDisconnect();

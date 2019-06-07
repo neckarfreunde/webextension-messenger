@@ -1,7 +1,6 @@
 import { Observable, timer } from "rxjs";
 import { map } from "rxjs/operators";
-import Router from "../src/router";
-import { IMethodList } from "../src/types";
+import { IMethodList, Router } from "../src";
 
 interface IRandConfig {
     min: number;

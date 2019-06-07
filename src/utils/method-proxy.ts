@@ -1,6 +1,9 @@
 import { Observable } from "rxjs";
 import { IMethodList, ObservableMethodList } from "../types";
 
+/**
+ * @internal
+ */
 export default abstract class MethodProxy<M extends IMethodList> {
     public readonly methods: ObservableMethodList<M> = this.initMethodsProxy();
 

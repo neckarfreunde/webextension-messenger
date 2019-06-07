@@ -7,4 +7,7 @@ enum MessageTypes {
     Error = "error",
 }
 
+/**
+ * @internal
+ */
 export default MessageTypes;

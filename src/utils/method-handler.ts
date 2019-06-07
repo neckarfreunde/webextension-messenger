@@ -3,6 +3,9 @@ import MethodNotFoundException from "../exceptions/method-not-found.exception";
 import { IMethodList } from "../types";
 import MethodProxy from "./method-proxy";
 
+/**
+ * @internal
+ */
 export default abstract class MethodHandler<M extends IMethodList> extends MethodProxy<M> {
     protected constructor(
         protected readonly methodList: IMethodList,

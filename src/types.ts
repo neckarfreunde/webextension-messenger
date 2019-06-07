@@ -16,6 +16,8 @@ type InferredReturnType<F extends AnyFunction> = ReturnType<F> extends Promise<i
 
 /**
  * Make all methods in an IMethodList observable
+ *
+ * @internal
  */
 export type ObservableMethodList<H extends IMethodList> = {
     [K in keyof H]: (...args: Parameters<H[K]>) => Observable<InferredReturnType<H[K]>>;

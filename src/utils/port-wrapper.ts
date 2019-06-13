@@ -26,7 +26,7 @@ export default class PortWrapper {
 
     protected isClosed = false;
 
-    public readonly methodCall$: Observable<IMethodCall> = this.message$.pipe(
+    public readonly methodCall$: Observable<IMethodCall<any>> = this.message$.pipe(
         filter(isMethodCall),
     );
 
@@ -74,10 +74,10 @@ export default class PortWrapper {
     /**
      * Call remote method
      *
-     * @param {string} method
+     * @param {*} method
      * @param {array} args
      */
-    public callMethod(method: string, args: any[]): Observable<any> {
+    public callMethod(method: any, args: any[]): Observable<any> {
         return this.sendPreparedMethodCall({
             type: MessageTypes.MethodCall,
             args,
@@ -103,7 +103,7 @@ export default class PortWrapper {
      *
      * @param {IMethodCall} call - The method call to send
      */
-    protected sendPreparedMethodCall(call: IMethodCall): Observable<any> {
+    protected sendPreparedMethodCall(call: IMethodCall<any>): Observable<any> {
         const { id, method } = call;
 
         let completed = false;

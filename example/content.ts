@@ -1,10 +1,9 @@
 import { timer } from "rxjs";
 import { concatMap, filter, map } from "rxjs/operators";
 import { Client } from "../src";
-import { IBgMethods } from "./bg";
 import { isRandNumber } from "./rand-number.interface";
 
-const connection = new Client<IBgMethods>("content");
+const connection = new Client("content");
 connection.connect();
 
 const notification = document.createElement("div");

@@ -24,6 +24,9 @@
     "rxjs": "^6",
     "uuid": "^3"
   },
+  "peerDependencies": {
+    "rxjs": "^6"
+  },
   "devDependencies": {
     "@types/firefox-webext-browser": "^65",
     "@types/jest": "^24.0.6",

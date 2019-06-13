@@ -1,13 +1,13 @@
 import { Observable } from "rxjs";
-import { IMethodList, ObservableMethodList } from "../types";
+import { ObservableMethodList } from "../types";
 
 /**
  * @internal
  */
-export default abstract class MethodProxy<M extends IMethodList> {
-    public readonly methods: ObservableMethodList<M> = this.initMethodsProxy();
+export default abstract class MethodProxy<T> {
+    public readonly methods: ObservableMethodList<T> = this.initMethodsProxy();
 
-    protected abstract callMethod(method: string, args: any[]): Observable<any>;
+    protected abstract callMethod(method: keyof T, args: any[]): Observable<any>;
 
     /**
      * Initializes the proxy used for method calling
@@ -18,7 +18,7 @@ export default abstract class MethodProxy<M extends IMethodList> {
         Object.seal(proxyObj);
 
         return new Proxy(proxyObj, {
-            get: (target, property: string) => (...args: any[]) => this.callMethod(property, args),
+            get: (target, property: keyof T) => (...args: any[]) => this.callMethod(property, args),
         });
     }
 }

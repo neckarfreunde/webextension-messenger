@@ -1,10 +1,9 @@
 import { interval, Observable } from "rxjs";
 import { take, toArray } from "rxjs/operators";
 import MethodNotFoundException from "../exceptions/method-not-found.exception";
-import { IMethodList } from "../types";
 import MethodHandler from "./method-handler";
 
-interface ITestMethods extends IMethodList {
+interface ITestMethods {
     plain: (name: string) => string;
     promise: () => Promise<boolean>;
     observable: () => Observable<number>;

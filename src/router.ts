@@ -7,7 +7,6 @@ import MessageTypes from "./models/message-types.enum";
 import IMethodCall from "./models/method-call.interface";
 import IMethodCompletion from "./models/method-completion.interface";
 import IMethodReturn from "./models/method-return.interface";
-import { IMethodList } from "./types";
 import MethodHandler from "./utils/method-handler";
 import PortWrapper from "./utils/port-wrapper";
 
@@ -15,13 +14,13 @@ interface IClientList {
     [id: string]: PortWrapper;
 }
 
-export default class Router<M extends IMethodList> extends MethodHandler<M> implements IBroadcaster {
+export default class Router<T> extends MethodHandler<T> implements IBroadcaster {
     /**
      * Mapping between client names and Ports
      */
     protected readonly clients: IClientList = {};
 
-    public constructor(methods: IMethodList = {}) {
+    public constructor(methods: T) {
         super(methods);
 
         fromEventPattern<browser.runtime.Port>(
@@ -100,7 +99,7 @@ export default class Router<M extends IMethodList> extends MethodHandler<M> impl
      * @param {PortWrapper} port
      * @param {IMethodCall} call
      */
-    protected handleMethodCall(port: PortWrapper, call: IMethodCall) {
+    protected handleMethodCall(port: PortWrapper, call: IMethodCall<T>) {
         console.debug(`Handling method call from client '${port.name}'`, { ...call });
 
         const { method, args, id } = call;

@@ -1,13 +1,13 @@
 import { Observable, timer } from "rxjs";
 import { map } from "rxjs/operators";
-import { IMethodList, Router } from "../src";
+import { Router } from "../src";
 
 interface IRandConfig {
     min: number;
     max: number;
 }
 
-export interface IBgMethods extends IMethodList {
+export interface IBgMethods {
     subscribeTime: () => Observable<string>;
     randInt: (config: IRandConfig) => number;
     setTimeout: (duration: number) => Promise<void>;

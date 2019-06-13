@@ -1,14 +1,13 @@
 import { from, isObservable, Observable, of, throwError } from "rxjs";
 import MethodNotFoundException from "../exceptions/method-not-found.exception";
-import { IMethodList } from "../types";
 import MethodProxy from "./method-proxy";
 
 /**
  * @internal
  */
-export default abstract class MethodHandler<M extends IMethodList> extends MethodProxy<M> {
+export default abstract class MethodHandler<T> extends MethodProxy<T> {
     protected constructor(
-        protected readonly methodList: IMethodList,
+        protected readonly methodList: T,
     ) {
         super();
     }
@@ -16,13 +15,15 @@ export default abstract class MethodHandler<M extends IMethodList> extends Metho
     /**
      * Call the proper handler
      */
-    protected callMethod(method: string, args: any[]): Observable<any> {
-        if (!this.methodList.hasOwnProperty(method)) {
-            return throwError(new MethodNotFoundException(method));
+    protected callMethod(method: keyof T, args: any[]): Observable<any> {
+        const func = this.methodList[method];
+
+        if (typeof func !== "function") {
+            return throwError(new MethodNotFoundException(`${method}`));
         }
 
         try {
-            const fnReturn = this.methodList[method](...args);
+            const fnReturn = func.apply(this.methodList, args);
 
             let obs$: Observable<any>;
             if (isObservable(fnReturn)) {

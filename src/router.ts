@@ -1,4 +1,4 @@
-import { fromEventPattern, of, race } from "rxjs";
+import { fromEventPattern, Observable, of, race, Subject } from "rxjs";
 import { catchError, finalize, map, takeUntil, tap } from "rxjs/operators";
 import IBroadcaster from "./interfaces/broadcaster.interface";
 import { IBroadcast } from "./models/broadcast.interface";
@@ -19,6 +19,23 @@ export default class Router<T> extends MethodHandler<T> implements IBroadcaster 
      * Mapping between client names and Ports
      */
     protected readonly clients: IClientList = {};
+
+    protected clientConnectSub = new Subject<string>();
+    protected clientDisconnectSub = new Subject<string>();
+
+    /**
+     * Emits the names of new clients on connection
+     */
+    public get clientConnect$(): Observable<string> {
+        return this.clientConnectSub.asObservable();
+    }
+
+    /**
+     * Emits the names of clients after disconnect
+     */
+    public get clientDisconnect$(): Observable<string> {
+        return this.clientDisconnectSub.asObservable();
+    }
 
     public constructor(methods: T) {
         super(methods);
@@ -53,8 +70,8 @@ export default class Router<T> extends MethodHandler<T> implements IBroadcaster 
             try {
                 console.debug(`Emitting broadcast to client '${client}'`, message);
                 this.clients[client].postMessage(message);
-            } catch {
-                // Failure, ignore for now
+            } catch (e) {
+                console.warn(`Failed to emit broadcast to client '${client}'`, e);
             }
         });
     }
@@ -80,6 +97,9 @@ export default class Router<T> extends MethodHandler<T> implements IBroadcaster 
             data,
             new RegExp(filter.source, filter.flags),
         ));
+
+        // Trigger client connect event
+        this.clientConnectSub.next(port.name);
     }
 
     /**
@@ -91,6 +111,9 @@ export default class Router<T> extends MethodHandler<T> implements IBroadcaster 
         console.debug(`Client '${port.name}' disconnected`);
 
         delete this.clients[port.name];
+
+        // Trigger client disconnect event
+        this.clientDisconnectSub.next(port.name);
     }
 
     /**

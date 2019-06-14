@@ -59,6 +59,10 @@ export default class PortWrapper {
         return this.port.name;
     }
 
+    public get tab(): browser.tabs.Tab | undefined {
+        return this.port.sender && this.port.sender.tab;
+    }
+
     public constructor(
         protected readonly port: browser.runtime.Port,
     ) { }

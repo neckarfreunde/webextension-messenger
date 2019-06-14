@@ -1,6 +1,7 @@
 import { fromEventPattern, Observable, of, race, Subject } from "rxjs";
 import { catchError, finalize, map, takeUntil, tap } from "rxjs/operators";
 import IBroadcaster from "./interfaces/broadcaster.interface";
+import { IConnectedClient } from "./interfaces/connected-client.interface";
 import { IBroadcast } from "./models/broadcast.interface";
 import IError from "./models/error.interface";
 import MessageTypes from "./models/message-types.enum";
@@ -20,20 +21,20 @@ export default class Router<T> extends MethodHandler<T> implements IBroadcaster 
      */
     protected readonly clients: IClientList = {};
 
-    protected clientConnectSub = new Subject<string>();
-    protected clientDisconnectSub = new Subject<string>();
+    protected clientConnectSub = new Subject<IConnectedClient>();
+    protected clientDisconnectSub = new Subject<IConnectedClient>();
 
     /**
      * Emits the names of new clients on connection
      */
-    public get clientConnect$(): Observable<string> {
+    public get clientConnect$(): Observable<IConnectedClient> {
         return this.clientConnectSub.asObservable();
     }
 
     /**
      * Emits the names of clients after disconnect
      */
-    public get clientDisconnect$(): Observable<string> {
+    public get clientDisconnect$(): Observable<IConnectedClient> {
         return this.clientDisconnectSub.asObservable();
     }
 
@@ -99,7 +100,7 @@ export default class Router<T> extends MethodHandler<T> implements IBroadcaster 
         ));
 
         // Trigger client connect event
-        this.clientConnectSub.next(port.name);
+        this.clientConnectSub.next({ name: port.name, tab: port.tab });
     }
 
     /**
@@ -113,7 +114,7 @@ export default class Router<T> extends MethodHandler<T> implements IBroadcaster 
         delete this.clients[port.name];
 
         // Trigger client disconnect event
-        this.clientDisconnectSub.next(port.name);
+        this.clientDisconnectSub.next({ name: port.name, tab: port.tab });
     }
 
     /**

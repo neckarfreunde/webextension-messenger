@@ -1,6 +1,6 @@
 {
   "name": "@neckarfreunde/webext-messenger",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "author": "Robin Thomas <robin@mycrm.de>",

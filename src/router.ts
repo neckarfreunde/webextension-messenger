@@ -10,6 +10,7 @@ import IMethodCompletion from "./models/method-completion.interface";
 import IMethodReturn from "./models/method-return.interface";
 import MethodHandler from "./utils/method-handler";
 import PortWrapper from "./utils/port-wrapper";
+import { FIREFOX_CANARY_ID, isFirefox } from "./utils/utils";
 
 interface IClientList {
     [id: string]: PortWrapper;
@@ -101,6 +102,15 @@ export default class Router<T> extends MethodHandler<T> implements IBroadcaster 
 
         // Trigger client connect event
         this.clientConnectSub.next({ name: port.name, tab: port.tab });
+
+        if (isFirefox() && port.tab && port.tab.id) {
+            // Port.onDisconnect is not triggered by Firefox when the extension is disabled/removed
+            // This is a workaround based on https://stackoverflow.com/a/47361379
+            browser.tabs.insertCSS(port.tab.id, { code: `#${FIREFOX_CANARY_ID} { opacity: 0 !important; }` })
+                .catch(() => console.warn(`Failed to inject disconnect canary for client '${port.name}'` +
+                    ", disconnect event might not work correctly!"));
+        }
+
     }
 
     /**

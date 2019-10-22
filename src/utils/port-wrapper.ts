@@ -12,6 +12,7 @@ import IMethodCall, { isMethodCall } from "../models/method-call.interface";
 import IMethodCompletion, { isMethodCompletion } from "../models/method-completion.interface";
 import IMethodReturn, { isMethodReturn } from "../models/method-return.interface";
 import IMethodUnsubscribe, { isMethodUnsubscribe } from "../models/method-unsubscribe.interface";
+import { decodeBinaryProperties, encodeBinaryProperties } from "./binary";
 import { makeVoid } from "./operators";
 
 /**
@@ -68,7 +69,7 @@ export default class PortWrapper {
     ) { }
 
     public postMessage(message: IMessage<any>): void {
-        this.port.postMessage(message);
+        this.port.postMessage(encodeBinaryProperties(message));
     }
 
     public disconnect(): void {
@@ -136,7 +137,7 @@ export default class PortWrapper {
             switchMap((err) => throwError(err)),
         );
 
-        this.port.postMessage(call);
+        this.postMessage(call);
 
         return merge(return$, error$).pipe(
             map(({ value }) => value),
@@ -153,7 +154,7 @@ export default class PortWrapper {
             finalize(() => {
                 if (!completed) {
                     // Stop method execution on the other end
-                    this.port!.postMessage({
+                    this.postMessage({
                         type: MessageTypes.MethodUnsubscribe,
                         id,
                     } as IMethodUnsubscribe);
@@ -190,6 +191,9 @@ export default class PortWrapper {
 
             map(([msg]) => msg),
             filter(isMessage),
+
+            // Decode binary properties
+            switchMap((message) => decodeBinaryProperties(message)),
         );
     }
 }

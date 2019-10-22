@@ -1,5 +1,5 @@
 const resolve = require("path").resolve;
-const CleanWebpackPlugin = require("clean-webpack-plugin");
+const { CleanWebpackPlugin } = require("clean-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 
@@ -33,7 +33,7 @@ module.exports = {
         extensions: [".ts", ".js"],
     },
     plugins: [
-        new CleanWebpackPlugin(build),
+        new CleanWebpackPlugin(),
 
         new CopyWebpackPlugin([
             {

@@ -11,6 +11,7 @@ export interface IBgMethods {
     subscribeTime: () => Observable<string>;
     randInt: (config: IRandConfig) => number;
     setTimeout: (duration: number) => Promise<void>;
+    testBinary: (buffer: ArrayBuffer) => ArrayBuffer;
 }
 
 const methods: IBgMethods = {
@@ -43,6 +44,22 @@ const methods: IBgMethods = {
             console.log("resolve");
             resolve(void 0);
         }, duration);
+    }),
+
+    /**
+     * Example of passing binary data around
+     */
+    testBinary: ((buffer: ArrayBuffer) => {
+        const intBuff = new Uint8Array(buffer);
+        console.log(`testBinary() received buffer with length ${intBuff.length}`);
+
+        for (let i = 0; i < intBuff.length; i++) {
+            const value = intBuff[i];
+            console.log(`Data: ${value}`);
+            intBuff[i] = value + 1;
+        }
+
+        return intBuff.buffer;
     }),
 };
 

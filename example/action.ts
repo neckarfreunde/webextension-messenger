@@ -6,6 +6,7 @@ import IRandNumber from "./rand-number.interface";
 
 const btnBroadcast = document.getElementById("btnBroadcast") as HTMLButtonElement;
 const btnBroadcastDelayed = document.getElementById("btnBroadcastDelayed") as HTMLButtonElement;
+const btnBinary = document.getElementById("btnBinary") as HTMLDivElement;
 const divTime = document.getElementById("divTime") as HTMLDivElement;
 
 btnBroadcast.disabled = true;
@@ -34,4 +35,19 @@ merge(broadcastClick$, broadcastDelayedClick$).pipe(
 ).subscribe((randNumber) => {
     const broadcast: IRandNumber = { randNumber };
     connection.sendBroadcast(broadcast, /^content/i);
+});
+
+fromEvent(btnBinary, "click").pipe(
+    switchMap(() => {
+        const buffer = new Uint8Array(4);
+        for (let i = 0; i < buffer.length; i++) {
+            buffer[i] = i + 1;
+        }
+
+        return connection.methods.testBinary(buffer.buffer);
+    }),
+).subscribe((retBuffer: ArrayBuffer) => {
+    const intBuff = new Uint8Array(retBuffer);
+
+    console.log(intBuff);
 });
